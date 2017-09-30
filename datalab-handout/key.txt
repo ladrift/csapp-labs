@@ -1,2 +1,2 @@
-<Enter your andrewid here>
-<Enter your unique code here>
+andrewid
+12345678901234567890123456789012
