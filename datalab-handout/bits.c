@@ -323,7 +323,32 @@ int isPallindrome(int x) {
  *   Rating: 2
  */
 int floatIsEqual(unsigned uf, unsigned ug) {
-  return 2;
+  // FIXME: Weird timeout when `./btest -f floatIsEqual`
+  //
+  // Output:
+  // ERROR: Test floatIsEqual failed.
+  // Timed out after 10 secs (probably infinite loop)
+
+  unsigned mask = ~(1 << 31);
+  unsigned f = mask & uf;
+  unsigned g = mask & ug;
+
+  if ((f == 0) && (g == 0)) {
+    return 1;
+  }
+
+  unsigned frac_mask = (~0) + (1 << 23);
+
+  if ((/* uf is NaN */
+        ((f >> 23) == 0xFF) && ((frac_mask & uf) != 0)
+      ) ||
+      (/* ug is NaN */
+        ((g >> 23) == 0xFF) && ((frac_mask & ug) != 0)
+      )) {
+    return 0;
+  }
+
+  return uf == ug;
 }
 /*
  * floatUnsigned2Float - Return bit-level equivalent of expression (float) u
@@ -335,7 +360,36 @@ int floatIsEqual(unsigned uf, unsigned ug) {
  *   Rating: 4
  */
 unsigned floatUnsigned2Float(unsigned u) {
-  return 2;
+  unsigned frac;    // frac[22...0] == the frac part of single-precision floating point values.
+  unsigned exp = 31; // exp[7...0]   == the exp  part of single-precision floating point values.
+
+  unsigned shift;
+  unsigned G, R, S;
+
+  if (u == 0) {
+    return 0;
+  }
+
+  while((u & (1 << exp)) == 0) {
+    exp--;
+  }
+
+  if (exp >= 23) {
+    shift = exp - 23;
+    G = u & (1 << shift);
+    R = u & (1 << (shift - 1));
+    S = u & ((~0) + (1 << (shift - 1)));
+
+    frac = u >> (exp - 23);
+
+    if ((R && S) || (R && G)) {
+      frac = frac + 1;
+    }
+  } else {
+    frac = u << (23 - exp);
+  }
+
+  return ((exp + 127) << 23) | (frac & ((~0) + (1 << 23)));
 }
 /*
  * floatScale4 - Return bit-level equivalent of expression 4*f for
@@ -349,5 +403,41 @@ unsigned floatUnsigned2Float(unsigned u) {
  *   Rating: 4
  */
 unsigned floatScale4(unsigned uf) {
-  return 2;
+  unsigned mask = ~(1 << 31);
+  unsigned f = mask & uf;
+  unsigned frac_mask = (~0) + (1 << 23);
+  unsigned exp_mask = 0xFF;
+  unsigned sign = uf >> 31;
+
+  unsigned exp = f >> 23;
+  unsigned frac = frac_mask & uf;
+
+  if ((exp == 0xFF) && (frac != 0)) {
+    return uf;
+  }
+
+  int times = 2;
+  while (times--) {
+    if (exp != 0) {
+      if (exp != 0xFF) {
+        exp = exp + 1;
+      }
+      if (exp == 0xFF) {
+        frac = 0;
+      }
+    } else {
+      if (frac & (1 << 22)) {
+        frac = frac << 1;
+        exp = 1;
+      } else {
+        frac = frac << 1;
+        exp = 0;
+      }
+    }
+  }
+
+  frac = frac & frac_mask;
+  exp = exp & exp_mask;
+
+  return (sign << 31) | ((exp) << 23) | frac;
 }
